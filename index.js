@@ -1,4 +1,6 @@
 const nodemailer = require("nodemailer");
+const cron = require('node-cron')
+const moment = require('moment-timezone')
 const cheerio = require("cheerio");
 const axios = require("axios");
 require("dotenv").config();
@@ -99,7 +101,11 @@ async function sendSMS(phoneNumber) {
   }
 }
 
-sendSMS(process.env.PHONE_NUMBER);
+process.env.TZ = 'America/Los_Angeles'
+
+cron.schedule('0 7 * * *', () => {
+  sendSMS(process.env.PHONE_NUMBER);
+})
 //generateGreeting();
 //getForecast();
 //scrapeHeadlines()
