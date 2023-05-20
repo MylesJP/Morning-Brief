@@ -114,5 +114,3 @@ process.env.TZ = "America/Los_Angeles";
 cron.schedule("0 7 * * *", () => {
   sendMorningGreeting();
 });
-
-sendMorningGreeting();
