@@ -170,8 +170,8 @@ process.env.TZ = "America/Los_Angeles";
 //getForecast();
 //scrapeHeadlines()
 //main()
-// cron.schedule('0 7 * * *', () => {
-//   main();
-// });
+cron.schedule('0 7 * * *', () => {
+  main();
+});
 
-getOutlookEvents();
+//getOutlookEvents();
