@@ -1,50 +1,61 @@
+import csv
 import os
+from sys import dont_write_bytecode
 from tracemalloc import start
+from urllib import request
 import requests
 import smtplib
 from email.message import EmailMessage
 import requests
-from bs4 import BeautifulSoup
 import schedule
 import time
+import pandas as pd
 from datetime import datetime, timezone, timedelta
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 
-# App texts user every Monday morning with week tide preds
+url = "https://tides.gc.ca/en/stations/9850/"
 
-DG_STATION_ID = "5cebf1de3d0f4a073c4bba3e"
-BASE_URL = "https://api.iwls-sine.azure.cloud-nuage.dfo-mpo.gc.ca"
-TIDE_API = f"/api/v1/stations/"
+# Setup download path first
+download_dir = "/home/myles/Documents/Code/Morning-Brief/CSVs"
+# Setup Chrome options
+options = Options()
+options.add_experimental_option("prefs", {
+    "download.default_directory": download_dir,
+    "download.prompt_for_download": False,
+    "download.directory_upgrade": True,
+    "safebrowsing.enabled": True  # You can set this to False if you want to disable the Safe Browsing feature
+})
 
-time_series_code = "wlo"
-start_time = datetime.now(timezone.utc)
-start_time_iso = start_time.replace(microsecond=0).isoformat()[:-6] + "Z"
-end_time = start_time + timedelta(days=1)
-end_time_iso = end_time.replace(microsecond=0).isoformat()[:-6] + "Z"
-resolution = "FIFTEEN_MINUTES"
-
-
-def get_tides(station_id, time_series_code, start_time_iso, end_time_iso, resolution):
-    try:
-        params = {
-            "time-series-code": time_series_code,
-            "from": start_time_iso,
-            "to": end_time_iso,
-            "resolution": resolution
-        }
-        response = requests.get(BASE_URL + TIDE_API + station_id + "/data", params=params)
-        print(response.url)
-        tide_data = response.json()
-        return tide_data
-    except Exception as e:
-        print("Error occured while fetching tide data:", e)
+# Initialize the Chrome WebDriver
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 
-print(get_tides(DG_STATION_ID, time_series_code, start_time_iso, end_time_iso, resolution))
+try:
+    # Navigate to the page and wait 5 seconds for it to load
+    driver.get(url)
+    time.sleep(3)
+    # driver.get_screenshot_as_file("a_test_screenshot.png")
 
-print(start_time_iso)
-print(end_time_iso)
-# https://api.iwls-sine.azure.cloud-nuage.dfo-mpo.gc.ca/api/v1/stations/5cebf1de3d0f4a073c4bba3e/data?time-series-code=wlo&from=2024-02-14T00%3A00%3A00Z&to=2024-02-15T00%3A00%3A00Z&resolution=FIFTEEN_MINUTES
-# https://api.iwls-sine.azure.cloud-nuage.dfo-mpo.gc.ca/api/v1/stations/5cebf1de3d0f4a073c4bba3e/data?time-series-code=wlo&from=2024-02-15T06%3A21%3A53%2B00%3A00Z&to=2024-02-22T06%3A21%3A53%2B00%3A00Z&resolution=FIFTEEN_MINUTES
+    # Select the "Predictions" option from the dropdown
+    dropdown = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'export-select')))
+    dropdown.find_element(By.CSS_SELECTOR, "option[value='Predictions']").click()
 
-# Bad: https://api.iwls-sine.azure.cloud-nuage.dfo-mpo.gc.ca/api/v1/stations/5cebf1de3d0f4a073c4bba3e/data?time-series-code=wlo&from=2024-02-15T06%3A30%3A06Z&to=2024-02-22T06%3A30%3A06Z&resolution=FIFTEEN_MINUTES
-# Gud: https://api.iwls-sine.azure.cloud-nuage.dfo-mpo.gc.ca/api/v1/stations/5cebf1de3d0f4a073c4bba3e/data?time-series-code=wlo&from=2024-02-14T00%3A00%3A00Z&to=2024-02-15T00%3A00%3A00Z&resolution=FIFTEEN_MINUTES
+    # Click the export button
+    export_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'export_button')))
+    filename = "predictions_" + export_button.get_attribute('data-filename') + ".csv"  # Save the filename for later
+    export_button.click()
+
+    time.sleep(3)  # Wait 3 seconds for file to download
+
+finally:
+    driver.quit()
+
+csv_file = os.path.join(download_dir, filename)
+df = pd.read_csv(csv_file)
+print(df.head())
