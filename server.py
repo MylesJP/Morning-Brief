@@ -18,6 +18,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+import numpy as np
+from scipy.signal import find_peaks
 
 url = "https://tides.gc.ca/en/stations/9850/"
 
@@ -58,4 +60,21 @@ finally:
 
 csv_file = os.path.join(download_dir, filename)
 df = pd.read_csv(csv_file)
-print(df.head())
+# print(df.head())
+
+df['Date'] = pd.to_datetime(df['Date'], format="%Y-%m-%d %H:%M %Z")  # Tell pandas format of date/time
+
+# We want to work day by day
+df['date_only'] = df['Date'].dt.date
+
+tide_preds = {}
+
+for date, group in df.groupby('date_only'):
+    # Locate local minima and maxima for low and high tides each day
+    preds = group['predictions (m)'].values
+    high_tides = find_peaks(preds)[0]
+    low_tides = find_peaks(-preds)[0]
+
+    # Sort and keep the top 2 high tides and low tides for the day based on their height
+    high_tides = sorted(high_tides, key=lambda x: preds[x], reverse=True)[:2]
+    low_tides = sorted(low_tides, key=lambda x: preds[x])[:2]
