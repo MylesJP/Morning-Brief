@@ -1,4 +1,5 @@
 import csv
+import enum
 import os
 from sys import dont_write_bytecode
 from tracemalloc import start
@@ -42,7 +43,6 @@ try:
     # Navigate to the page and wait 5 seconds for it to load
     driver.get(url)
     time.sleep(3)
-    # driver.get_screenshot_as_file("a_test_screenshot.png")
 
     # Select the "Predictions" option from the dropdown
     dropdown = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'export-select')))
@@ -62,7 +62,11 @@ csv_file = os.path.join(download_dir, filename)
 df = pd.read_csv(csv_file)
 # print(df.head())
 
-df['Date'] = pd.to_datetime(df['Date'], format="%Y-%m-%d %H:%M %Z")  # Tell pandas format of date/time
+# Correctly retain both date and time while removing the timezone
+df['Date'] = df['Date'].str.split(' ', expand=True).iloc[:, :2].agg(' '.join, axis=1)
+
+# Now, convert the 'Date' column to datetime objects without the timezone
+df['Date'] = pd.to_datetime(df['Date'], format="%Y-%m-%d %H:%M")
 
 # We want to work day by day
 df['date_only'] = df['Date'].dt.date
@@ -78,3 +82,31 @@ for date, group in df.groupby('date_only'):
     # Sort and keep the top 2 high tides and low tides for the day based on their height
     high_tides = sorted(high_tides, key=lambda x: preds[x], reverse=True)[:2]
     low_tides = sorted(low_tides, key=lambda x: preds[x])[:2]
+
+    # Store results
+    tide_preds[date] = {
+        'High Tides': [(group.iloc[i]['Date'], preds[i]) for i in high_tides],
+        'Low Tides': [(group.iloc[i]['Date'], preds[i]) for i in low_tides]
+    }
+
+for date, tides in tide_preds.items():
+    print(f"Date: {date}")
+    # Merge high and low tides, tagging each entry with its type
+    combined_tides = [('High Tide', *tide) for tide in tides['High Tides']] + \
+                     [('Low Tide', *tide) for tide in tides['Low Tides']]
+    
+    # Sort the combined list by the datetime (which is now the second element in each tuple)
+    sorted_tides = sorted(combined_tides, key=lambda x: x[1])
+    
+    # Print the sorted tide information, displaying only the hour and minute
+    for tide_type, time, level in sorted_tides:
+        # Format the time to only show hour and minute
+        time_str = time.strftime("%H:%M")
+        print(f"{tide_type}: {time_str} - {level}m")
+
+# Delete the CSV afterwards
+try:
+    os.remove(csv_file)
+    print("Successfully deleted")
+except OSError as e:
+    print(f"Error: {e.strerror}")
