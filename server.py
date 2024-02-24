@@ -1,12 +1,16 @@
 import csv
+import email
 import enum
 import os
+from dotenv import load_dotenv
 from sys import dont_write_bytecode
 from tracemalloc import start
 from urllib import request
 import requests
 import smtplib
 from email.message import EmailMessage
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import requests
 import schedule
 import time
@@ -21,6 +25,11 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 import numpy as np
 from scipy.signal import find_peaks
+
+load_dotenv()
+smtp_user = os.getenv('SMTP_USER')
+smtp_pass = os.getenv('SMTP_PASS')
+phone_number = os.getenv('PHONE_NUMBER')
 
 url = "https://tides.gc.ca/en/stations/9850/"
 
@@ -110,3 +119,32 @@ try:
     print("Successfully deleted")
 except OSError as e:
     print(f"Error: {e.strerror}")
+
+def sendSMS(phone_number, message, smtp_user, smtp_pass):
+    smtp_host = "smtp.office365.com"
+    smtp_port = 587
+    email_address = phone_number + "@txt.bell.ca"
+
+    # Setup email message
+    msg = MIMEMultipart()
+    msg['From'] = smtp_user
+    msg['To'] = email_address
+    msg['Subject'] = ''
+    msg.attach(MIMEText(message, 'plain'))
+
+    # Send SMS
+    try:
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        text = msg.as_string()
+        server.sendmail(smtp_user, email_address, text)
+        server.quit()
+        print("Sent successfully")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+
+message = "This is a test text to Myles"
+
+sendSMS(phone_number=phone_number, message=message, smtp_user=smtp_user, smtp_pass=smtp_pass)
