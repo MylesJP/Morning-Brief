@@ -51,6 +51,10 @@ def process_tide_data(csv_file):
     df['Date'] = pd.to_datetime(df['Date'].str.split(' ', expand=True).iloc[:, :2].agg(' '.join, axis=1), format="%Y-%m-%d %H:%M")
     df['date_only'] = df['Date'].dt.date
 
+    # Only want data from today on
+    today = datetime.now().date()
+    df = df[df['date_only'] >= today]
+
     tide_preds = {}
     for date, group in df.groupby('date_only'):
         # Locate local minima and maxima for low and high tides each day
@@ -67,25 +71,25 @@ def process_tide_data(csv_file):
             'Low Tides': [(group.iloc[i]['Date'], preds[i]) for i in low_tides]
         }
 
-    # os.remove(csv_file)
+    os.remove(csv_file)
     return tide_preds
 
 def format_tide_message(tide_preds):
     messages = []
     for date, tides in tide_preds.items():
-        message = f"Date: {date}\n"
+        message = f"{date}\n"
         # Merge high and low tides, tagging each entry with its type
-        combined_tides = [('High Tide', *tide) for tide in tides['High Tides']] + \
-                        [('Low Tide', *tide) for tide in tides['Low Tides']]
+        combined_tides = [('High', *tide) for tide in tides['High Tides']] + \
+                        [('Low', *tide) for tide in tides['Low Tides']]
 
         sorted_tides = sorted(combined_tides, key=lambda x: x[1])
         
         for tide_type, time, level in sorted_tides:
             # Format the time to only show hour and minute
             time_str = time.strftime("%H:%M")
-            message += (f"{tide_type}: {time_str} - {level}m")
+            message += (f"  {tide_type}: {time_str} - {level}m\n")
         messages.append(message)
-    return "\n.".join(messages)
+    return "\n".join(messages)
 
 
 def send_sms(phone_number, message, smtp_user, smtp_pass):
@@ -127,5 +131,5 @@ if __name__ == "__main__":
     send_sms(phone_number=phone_number, message=message, smtp_user=smtp_user, smtp_pass=smtp_pass)
 
 # TODO
-    # Don't print today's date if highs and lows are passed
+    # Why does it print yesterday's date?
     # Fix formatting
