@@ -1,11 +1,9 @@
-import csv
 import os
 from dotenv import load_dotenv
 import smtplib
 from email.message import EmailMessage
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import requests
 import schedule
 import time
 import pandas as pd
@@ -22,6 +20,7 @@ from scipy.signal import find_peaks
 
 def download_tides_data(url, download_dir):
     options = Options()
+    options.add_argument("--headless")
     options.add_experimental_option("prefs", {
         "download.default_directory": download_dir,
         "download.prompt_for_download": False,
@@ -31,7 +30,7 @@ def download_tides_data(url, download_dir):
 
     with webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options) as driver:
         driver.get(url)
-        time.sleep(3)
+        time.sleep(5)
         # Select the "Predictions" option from the dropdown
         dropdown = WebDriverWait(driver, 10).until(EC.element_to_be_clickable((By.ID, 'export-select')))
         dropdown.find_element(By.CSS_SELECTOR, "option[value='Predictions']").click()
@@ -41,7 +40,7 @@ def download_tides_data(url, download_dir):
         filename = "predictions_" + export_button.get_attribute('data-filename') + ".csv"  # Save the filename for later
         export_button.click()
 
-        time.sleep(3)  # Wait 3 seconds for file to download
+        time.sleep(5)  # Wait 3 seconds for file to download
 
     return os.path.join(download_dir, filename)
 
@@ -112,12 +111,11 @@ def send_sms(phone_number, message, smtp_user, smtp_pass):
         text = msg.as_string()
         server.sendmail(smtp_user, email_address, text)
         server.quit()
-        print("Sent successfully")
     except Exception as e:
         print(f"Failed: {e}")
 
 
-if __name__ == "__main__":
+def main_workflow():
     load_dotenv()
     smtp_user = os.getenv('SMTP_USER')
     smtp_pass = os.getenv('SMTP_PASS')
@@ -129,7 +127,11 @@ if __name__ == "__main__":
     tide_preds = process_tide_data(csv_file=csv_file)
     message = format_tide_message(tide_preds=tide_preds)
     send_sms(phone_number=phone_number, message=message, smtp_user=smtp_user, smtp_pass=smtp_pass)
+    print(f"Sent successfully on {datetime.now().date()}")
 
-# TODO
-    # Why does it print yesterday's date?
-    # Fix formatting
+schedule.every(5).days.do(main_workflow)
+
+if __name__ == "__main__":
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
